@@ -53,5 +53,3 @@ dkms.conf
 
 .vscode/
 *.log
-example.c
-example

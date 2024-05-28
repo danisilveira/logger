@@ -27,8 +27,8 @@ typedef enum LogLevel {
 } LogLevel;
 
 typedef struct LogAttr {
-  char *key;
-  char *value;
+  const char *key;
+  const char *value;
 } LogAttr;
 
 typedef struct LogEntry {
@@ -47,6 +47,7 @@ typedef struct LogEntry {
 typedef void (*LogCallbackFn)(LogEntry entry); 
 
 typedef struct LogCallback {
+  const char *filename;
   LogCallbackFn fn;
   LogLevel level;
   FILE *fd;
@@ -68,7 +69,7 @@ typedef struct Logger {
 
 Logger create_logger(LogConfig config);
 Logger create_default_logger();
-void logger_add_callback(Logger *logger, LogCallbackFn fn, LogLevel level, FILE *fd);
+void logger_add_callback(Logger *logger, LogCallbackFn fn, LogLevel level, const char *filename, FILE *fd);
 void logger_write_to_file_callback_fn(LogEntry entry);
 void logger_write_to_terminal_callback_fn(LogEntry entry);
 void logger_log(Logger logger, LogLevel level, const char *file, int line, const char *fmt, ...);
@@ -104,11 +105,11 @@ Logger create_logger(LogConfig config) {
     FILE *fd = fopen(config.filename, "a");
     assert(fd != NULL && "Something went wrong opening the file");
 
-    logger_add_callback(&logger, logger_write_to_file_callback_fn, logger.level, fd);
+    logger_add_callback(&logger, logger_write_to_file_callback_fn, logger.level, NULL, fd);
   }
 
   if (!config.quiet) {
-    logger_add_callback(&logger,logger_write_to_terminal_callback_fn, logger.level, stdout);
+    logger_add_callback(&logger,logger_write_to_terminal_callback_fn, logger.level, NULL, stdout);
   }
 
   memcpy(logger.callbacks + 2, config.callbacks, sizeof(config.callbacks));
@@ -129,14 +130,24 @@ Logger create_default_logger() {
   };
 }
 
-void logger_add_callback(Logger *logger,LogCallbackFn fn, LogLevel level, FILE *fd) {
+void logger_add_callback(Logger *logger,LogCallbackFn fn, LogLevel level, const char *filename, FILE *fd) {
   for (int i = 0; i < LOG_MAX_CALLBACKS; i++)  {
     if (!logger->callbacks[i].fn) {
-      logger->callbacks[i] = (LogCallback){
+      LogCallback callback = {
+        .filename = filename,
         .fn = fn,
         .level = level,
-        .fd = fd
+        .fd = fd,
       };
+
+      if (filename != NULL) {
+        FILE *fd = fopen(filename, "a");
+        assert(fd != NULL);
+
+        callback.fd = fd;
+      }
+
+      logger->callbacks[i] = callback;
 
       return;
     }
@@ -154,7 +165,7 @@ void logger_write_to_file_callback_fn(LogEntry entry) {
     if (attr.key == NULL || attr.value == NULL) {
       continue;
     }
-    
+
     fprintf(entry.fd, " %s=%s", attr.key, attr.value);
   }
   fprintf(entry.fd, "\n");

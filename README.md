@@ -4,4 +4,4 @@ It's just a simple logging library written in C.
 
 ---
 
-WIP
+![screenshot](./example/output.png)
